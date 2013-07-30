@@ -1,4 +1,5 @@
 // package dbgp implements the dbgp client protocol
+// status: pre-alpha
 package dbgp
 
 import (
