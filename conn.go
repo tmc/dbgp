@@ -58,7 +58,6 @@ func (c *Conn) Run() error {
 	for {
 		// reinit flags
 		flgs.Init("", flag.ContinueOnError)
-		payloadRaw := false // controls whether payload shoudl be marshalled or if it's already prepared
 
 		parts, err := c.next()
 		log.Println(parts)
@@ -70,7 +69,10 @@ func (c *Conn) Run() error {
 		flgs.Parse(parts[1:])
 
 		attrs := make(map[string]interface{})
-		var payload interface{}
+		var (
+			payload    interface{}
+			payloadRaw bool // controls whether payload shoudl be marshalled or if it's already prepared
+		)
 		switch cmd {
 		case "step_into":
 			status, reason := c.client.StepInto()
