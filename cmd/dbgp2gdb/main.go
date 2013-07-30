@@ -4,9 +4,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-
+	"github.com/traviscline/dbgp"
 	"github.com/traviscline/dbgp/gdbproxy"
+	"log"
+	"net"
+	"os"
 )
 
 var dial = flag.String("dial", "localhost:9000", "DBGP host/port to conenct to")
@@ -21,12 +23,22 @@ func main() {
 	}
 	target = flag.Args()[0]
 
-	p, err := gdbproxy.NewProxy(*dial, target)
+	log.Println("dialing", *dial)
+	c, err := net.Dial("tcp", *dial)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error connecting to IDE:", err)
+		os.Exit(1)
+	}
+
+	ideKey, session := os.Getenv("DBGP_IDEKEY"), os.Getenv("DBGP_COOKIE")
+	p, err := gdbproxy.New(target, ideKey, session)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error creating proxy:", err)
 		os.Exit(1)
 	}
-	if err := p.Run(); err != nil {
+
+	conn := dbgp.NewConn(c, p)
+	if err := conn.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error running proxy:", err)
 		os.Exit(1)
 	}
