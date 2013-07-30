@@ -34,7 +34,7 @@ func NewConn(conn io.ReadWriter, client DBGPClient) *Conn {
 
 // Initializes connection with the server
 func (c *Conn) init() error {
-	return c.sendXml(xml_init{xml.Name{}, c.client.Init(), "1.0"})
+	return c.writeXML(xml_init{xml.Name{}, c.client.Init(), "1.0"})
 }
 
 func (c *Conn) next() ([]string, error) {
@@ -170,20 +170,10 @@ func (c *Conn) writeResponse(cmd string, txId int, attrs map[string]interface{},
 		strings.Join(attrsToStrings, " "),
 		string(payloadBytes))
 
-	return c.sendBytes([]byte(r))
+	return c.writeBytes([]byte(r))
 }
 
-// Consumes the next command from the server
-//func (c *Conn) next() (cmd, error) {
-//	s, err := c.sock.ReadString(0)
-//	if err != nil {
-//		return cmd{}, err
-//	}
-//	bits := strings.Split(s, " ")
-//	return cmd{bits[0], bits[1:], false}, nil
-//}
-
-func (c *Conn) sendXml(v interface{}) error {
+func (c *Conn) writeXML(v interface{}) error {
 	b, err := xml.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return err
@@ -204,7 +194,7 @@ type stack struct {
 	Stack
 }
 
-func (c *Conn) sendBytes(b []byte) error {
+func (c *Conn) writeBytes(b []byte) error {
 	c.sock.WriteString(fmt.Sprint(len(b)))
 	c.sock.Write(nul)
 	_, err := c.sock.Write(b)
@@ -215,44 +205,9 @@ func (c *Conn) sendBytes(b []byte) error {
 	return c.sock.Flush()
 }
 
-// Encodes an init messages
-//
-//<init appid="APPID"
-//      idekey="IDE_KEY"
-//      session="DBGP_COOKIE"
-//      thread="THREAD_ID"
-//      parent="PARENT_APPID"
-//      language="LANGUAGE_NAME"
-//      protocol_version="1.0"
-//      fileuri="file://path/to/file">
+// Encodes an init message
 type xml_init struct {
 	XMLName xml.Name `xml:"init"`
 	InitResponse
 	ProtocolVersion string `xml:"protocol_version,attr"`
-}
-
-// <?xml version="1.0" encoding="utf-8"?>
-// <response xmlns="urn:debugger_protocol_v1" command="feature_get"
-//   feature_name="supports_async" supported="1"
-//   transaction_id="1"><![CDATA[1]]></response>.
-//
-// <?xml version="1.0" encoding="utf-8"?>
-// <response xmlns="urn:debugger_protocol_v1" command="step_into" status="break" reason="ok" transaction_id="31"/>.
-type xml_response struct {
-	XMLName xml.Name     `xml:"response"`
-	XMLNs   string       `xml:"xmlns,attr"`
-	Command string       `xml:"command,attr"`
-	TxId    int          `xml:"transaction_id,attr"`
-	Payload interface{}  `xml:"omitempty"`
-	Extra   string       `xml:",innerxml"`
-	Data    xml.CharData `xml:"chardata,omitempty"`
-}
-
-type xml_error struct {
-	XMLName xml.Name `xml:"response"`
-	XMLNs   string   `xml:"xmlns,attr"`
-	Command string   `xml:"command,attr"`
-	TxId    int      `xml:"transaction_id,attr"`
-	Error   error
-	Data    xml.CharData `xml:"chardata,omitempty"`
 }
