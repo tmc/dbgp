@@ -1,5 +1,5 @@
-// package proxy implements a dbgp to gdb proxy interface
-package proxy
+// package gdbproxy implements a dbgp to gdb proxy interface
+package gdbproxy
 
 import (
 	"bufio"

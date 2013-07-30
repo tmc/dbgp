@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/traviscline/dbgp/proxy"
+	"github.com/traviscline/dbgp/gdbproxy"
 )
 
 var dial = flag.String("dial", "localhost:9000", "DBGP host/port to conenct to")
@@ -21,7 +21,7 @@ func main() {
 	}
 	target = flag.Args()[0]
 
-	p, err := proxy.NewProxy(*dial, target)
+	p, err := gdbproxy.NewProxy(*dial, target)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error creating proxy:", err)
 		os.Exit(1)
