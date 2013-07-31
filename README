@@ -1,4 +1,12 @@
 dbgp client protocol for go
 
-status: alpha
+
+status: alpha/beta/patches-please
 license: isc
+
+
+interesting sub-project: dbgp->dgb proxy
+
+quick-start:
+$ go get github.com/traviscline/dbgp/cmd/dbgp2gdb # (I know)
+$ dbgp2gdb ./binary-debuggable-with-gdb # this will attempt to connect to your IDE on port 9000 (see -h for options)
