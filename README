@@ -1,4 +1,4 @@
-dbgp client protocol for go
+dbgp protocol for go (debugger engine side)
 
 
 status: alpha/beta/patches-please
