@@ -7,28 +7,40 @@ package dbgp
 
 // The DBGPClient interface captures what a client implementation must provide
 type DBGPClient interface {
+	// Init is called when starting communication with upstream
 	Init() InitResponse
-	Status() string                                    // Return status, one of ("starting", "stopping", "running", "break")
-	Features() Features                                // Return supported features (called after Init())
-	StepInto() (status string, reason string)          // Step the debugger into the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
-	StepOver() (status string, reason string)          // Step over the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
-	StackDepth() int                                   // Return the maximum stack depth
-	StackGet(depth int) ([]Stack, error)               // Return one or more Stack elements based on the requested depth
-	ContextNames(depth int) ([]Context, error)         // Return the relevant Contexts
-	ContextGet(depth, context int) ([]Property, error) // Return the properties assocaited with the specified stack depth and context
-
-	PropertyGet(depth, context int, name string) (string, error) // Return the value for a property
-
-	BreakpointSet(btType, fileName string, line int) (Breakpoint, error) // Set a breakpoint
+	// Return status, one of ("starting", "stopping", "running", "break")
+	Status() string
+	// Return supported features (called after Init())
+	Features() Features
+	// Step the debugger into the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
+	StepInto() (status string, reason string)
+	// Step over the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
+	StepOver() (status string, reason string)
+	// Return the maximum stack depth
+	StackDepth() int
+	// Return one or more Stack elements based on the requested depth
+	StackGet(depth int) ([]Stack, error)
+	// Return the relevant Contexts
+	ContextNames(depth int) ([]Context, error)
+	// Return the properties assocaited with the specified stack depth and context
+	ContextGet(depth, context int) ([]Property, error)
+	// Return the value for a property
+	PropertyGet(depth, context int, name string) (string, error)
+	// Set a breakpoint
+	BreakpointSet(btType, fileName string, line int) (Breakpoint, error)
 }
 
+// Features describes the supported features of the debugger enging
 type Features struct {
 	Supports_async bool
 	Language_name  string
 }
 
+// Breakpoint is a breakpoint in code
 type Breakpoint struct {
 	ID    int    `xml:"breakpoint_id,attr"`
+	// Either "enabled" or "disabled"
 	State string `xml:"state,attr"`
 }
 
