@@ -33,7 +33,7 @@ type GDB struct {
 // Init is invoked to begin the session with the upstream IDE or proxy
 func (g *GDB) Init() dbgp.InitResponse {
 	g.consumeLines(g.stdout, defaultWait)
-	lineNumber, lang, _ := g.currentFilenameAndLang()
+	fileName, lang, _ := g.currentFilenameAndLang()
 	g.features.Language_name = lang
 
 	return dbgp.InitResponse{
@@ -42,7 +42,7 @@ func (g *GDB) Init() dbgp.InitResponse {
 		Session:  g.session,
 		Thread:   "1",
 		Language: lang,
-		FileURI:  "file://" + lineNumber,
+		FileURI:  "file://" + fileName,
 	}
 }
 
