@@ -3,11 +3,13 @@ package gdbproxy
 
 import (
 	"bufio"
+	"fmt"
 	"github.com/traviscline/dbgp"
 	"io"
 	"log"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,7 +17,9 @@ import (
 var defaultWait = 100 * time.Millisecond
 
 type GDB struct {
+	status          string // ("starting", "stopping", "running", "break")
 	ideKey, session string
+	features        dbgp.Features
 
 	cmd *exec.Cmd
 
@@ -33,7 +37,8 @@ func (g *GDB) Init() dbgp.InitResponse {
 	// consume header
 	g.consumeLines(g.stdoutCh, defaultWait)
 
-	fileName, lang := g.currentFilenameAndLang()
+	lineNumber, lang := g.currentFilenameAndLang()
+	g.features.Language_name = lang
 
 	return dbgp.InitResponse{
 		AppId:    "gdbproxy",
@@ -41,29 +46,57 @@ func (g *GDB) Init() dbgp.InitResponse {
 		Session:  g.session,
 		Thread:   "1",
 		Language: lang,
-		FileURI:  "file://" + fileName,
+		FileURI:  "file://" + lineNumber,
 	}
 }
 
-func (g *GDB) StepInto() (status, reason string) {
+func (g *GDB) Status() string {
+	return g.status
+}
+
+func (g *GDB) Features() dbgp.Features {
+	return g.features
+}
+
+func (g *GDB) start() {
 	g.stdinCh <- "b 1"
 	g.stdinCh <- "run"
-	log.Println("[gdbproxy] b 1; run:", g.stdoutLines())
+	g.status = "break"
+	log.Println("[gdbproxy] start:", g.stdoutLines())
+}
+
+func (g *GDB) StepInto() (status, reason string) {
+	if g.status == "starting" {
+		g.start()
+	}
+	g.stdinCh <- "s"
+	log.Println("[gdbproxy] StepInto:", g.stdoutLines())
+	return "break", "ok"
+}
+
+func (g *GDB) StepOver() (status, reason string) {
+	if g.status == "starting" {
+		g.start()
+	}
+	g.stdinCh <- "n"
+	log.Println("[gdbproxy] StepOver:", g.stdoutLines())
 	return "break", "ok"
 }
 
 func (g *GDB) StackDepth() int {
 	log.Println("gdb: step into")
-	return 2
+	return 2 // @todo make accurate
 }
 
 func (g *GDB) StackGet(depth int) []dbgp.Stack {
 	log.Println("gdb: stack get")
 	fn, _ := g.currentFilenameAndLang()
+	line, _ := g.currentLineNumber()
 	return []dbgp.Stack{
 		{
 			Filename: "file://" + fn,
-			Lineno:   1,
+			Type:     "file",
+			Lineno:   line,
 			Where:    "{main}",
 		},
 	}
@@ -91,6 +124,7 @@ func (g *GDB) ContextGet(depth, context int) []dbgp.Property {
 		if len(matches) != 4 {
 			log.Println("unexpected number of matches (wanted 4):", matches)
 		}
+
 		properties = append(properties, dbgp.Property{
 			Name:     matches[1],
 			Fullname: matches[1],
@@ -100,6 +134,30 @@ func (g *GDB) ContextGet(depth, context int) []dbgp.Property {
 	}
 
 	return properties
+}
+
+func (g *GDB) SetBreakpoint(bpType, fileName string, lineNumber int) dbgp.Breakpoint {
+	if bpType != "line" {
+		log.Println("[dbgproxy] only supports line breakpoints currently.")
+	}
+
+	cmd := fmt.Sprintf("b %s:%d", stripAbsFilePrefix(fileName), lineNumber)
+	g.stdinCh <- "set breakpoint pending on"
+	g.stdinCh <- cmd
+
+	bpNumberRe := regexp.MustCompile("Breakpoint ([0-9]+) ")
+	bpLines := strings.Join(g.stdoutLines(), "\n")
+	matches := bpNumberRe.FindStringSubmatch(bpLines)
+	if len(matches) != 2 {
+		log.Println("unexpected number of matches (wanted 2):", matches)
+		log.Println("unexpected number of matches (wanted 2):", bpLines)
+	}
+	bpNum, err := strconv.Atoi(matches[1])
+	if err != nil {
+		log.Println("[dbgproxy] could not Atoi:", matches[1])
+	}
+
+	return dbgp.Breakpoint{bpNum, "enabled"}
 }
 
 // creates a new GDB DBGP Proxy for the specified targert
@@ -123,6 +181,7 @@ func New(target, ideKey, session string) (*GDB, error) {
 	// start io goroutines
 	errChan := make(chan error)
 	return &GDB{
+		status:   "starting",
 		ideKey:   ideKey,
 		session:  session,
 		cmd:      cmd,
@@ -133,6 +192,7 @@ func New(target, ideKey, session string) (*GDB, error) {
 		stderrCh: scanReaderToChan(stderr, errChan),
 		stdinCh:  stringChanToWriter(stdin, errChan),
 		errChan:  errChan,
+		features: dbgp.Features{},
 	}, nil
 }
 
@@ -150,7 +210,7 @@ func (g *GDB) getType(symbol string) string {
 }
 
 // Obtain the current filename and language via "info source"
-func (g *GDB) currentFilenameAndLang() (fileName, lang string) {
+func (g *GDB) currentFilenameAndLang() (lineNumber, lang string) {
 	//go io.Copy(g.stdin, os.Stdin) // @todo consider user stdin
 	g.stdinCh <- "list 1"
 	// not interested in list output, needed for "info source"
@@ -159,7 +219,7 @@ func (g *GDB) currentFilenameAndLang() (fileName, lang string) {
 
 	sourceInfo := g.stdoutLines()
 	info := strings.Join(sourceInfo, "\n")
-	log.Println("source info:", info)
+	//log.Println("source info:", info)
 
 	// extract meaningful things
 	fileNameRe := regexp.MustCompile("Current source file is (.+)")
@@ -178,6 +238,23 @@ func (g *GDB) currentFilenameAndLang() (fileName, lang string) {
 	return fileNameMatches[1], langMatches[1]
 }
 
+// Obtain the current line number
+func (g *GDB) currentLineNumber() (int, error) {
+	//go io.Copy(g.stdin, os.Stdin) // @todo consider user stdin
+	g.stdinCh <- "where"
+	lineInfo := g.stdoutLines()
+	parts := strings.Join(lineInfo, "\n")
+
+	whereRe := regexp.MustCompile("at (.+):([0-9]+)")
+
+	matches := whereRe.FindStringSubmatch(parts)
+
+	if len(matches) != 3 {
+		return 0, fmt.Errorf("unexpected match length, expected 3: %s", fmt.Sprint(matches))
+	}
+	return strconv.Atoi(matches[2])
+}
+
 // Get stdout lines, waiting defaultWait
 func (g *GDB) stdoutLines() []string {
 	result := g.consumeLines(g.stdoutCh, defaultWait)
@@ -194,7 +271,7 @@ func (g *GDB) consumeLines(c <-chan string, maxWait time.Duration) []string {
 		select {
 		case line := <-c:
 			result = append(result, line)
-			log.Println("[gdbproxy]", line)
+			log.Println("(gdb) ", line)
 		case err := <-g.errChan:
 			log.Println("error while consuming:", err)
 		case <-time.After(maxWait): // give other end of the channel some time
@@ -240,4 +317,9 @@ func stringChanToWriter(w io.Writer, errChan chan<- error) chan<- string {
 		}
 	}()
 	return c
+}
+
+// Strips "file://" from the beginning of a string
+func stripAbsFilePrefix(lineNumber string) string {
+	return strings.TrimPrefix(lineNumber, "file://")
 }

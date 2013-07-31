@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 
 	"strings"
 )
@@ -50,17 +51,30 @@ func (c *Conn) Run() error {
 		return err
 	}
 	flgs := new(flag.FlagSet)
+	// @todo move to -1 as "unset"
 	txId := flgs.Int("i", 0, "")
 	depth := flgs.Int("d", 0, "")
 	fileName := flgs.String("f", "", "")
 	context := flgs.Int("c", 0, "")
+	var_n := flgs.String("n", "", "")
+	bpType := flgs.String("t", "", "")
+	_ = flgs.String("s", "", "")
+	_ = flgs.String("v", "", "")
+	_ = flgs.Int("r", 0, "")
 
 	for {
 		// reinit flags
 		flgs.Init("", flag.ContinueOnError)
 
 		parts, err := c.next()
-		log.Println(parts)
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		//log.Println("[conn.go] parts:", parts, err)
 		if err != nil {
 			c.writeError("unknown", *txId, err)
 		}
@@ -74,8 +88,14 @@ func (c *Conn) Run() error {
 			payloadRaw bool // controls whether payload shoudl be marshalled or if it's already prepared
 		)
 		switch cmd {
+		case "status":
+			attrs["status"] = c.client.Status()
 		case "step_into":
 			status, reason := c.client.StepInto()
+			attrs["status"] = status
+			attrs["reason"] = reason
+		case "step_over":
+			status, reason := c.client.StepOver()
 			attrs["status"] = status
 			attrs["reason"] = reason
 		case "stack_depth":
@@ -111,6 +131,18 @@ func (c *Conn) Run() error {
 		case "context_get":
 			contextProperties := c.client.ContextGet(*depth, *context)
 			payload = contextProperties
+		case "feature_get":
+			fieldName := strings.Title(*var_n)
+			v, _ := getFieldValueByName(c.client.Features(), fieldName)
+			payload = v
+		case "breakpoint_set":
+			lineNumber, err := strconv.Atoi(*var_n)
+			if err != nil {
+				break
+			}
+			bp := c.client.SetBreakpoint(*bpType, *fileName, lineNumber)
+			attrs["breakpoint_id"] = bp.Id
+			attrs["state"] = bp.State
 		default:
 			err = ErrUnimplemented
 		}

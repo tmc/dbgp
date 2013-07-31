@@ -6,11 +6,25 @@ package dbgp
 // The DBGPClient interface captures what a client implementation must provide
 type DBGPClient interface {
 	Init() InitResponse
-	StepInto() (state string, reason string)  // Step the debugger into the program. State one of ("starting", "stopping", "running", "breaking"), and reason one of ("ok, "error", "aborted", "exception")
-	StackDepth() int                          // Return the maximum stack depth
-	StackGet(depth int) []Stack               // Return one or more Stack elements based on the requested depth
-	ContextGet(depth, context int) []Property // Return the properties assocaited with the specified stack depth and context
-	ContextNames(depth int) []Context         // Return the relevant Contexts
+	Features() Features                                               // Return supported features (called after Init())
+	StepInto() (status string, reason string)                         // Step the debugger into the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
+	StepOver() (status string, reason string)                         // Step over the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
+	StackDepth() int                                                  // Return the maximum stack depth
+	StackGet(depth int) []Stack                                       // Return one or more Stack elements based on the requested depth
+	ContextGet(depth, context int) []Property                         // Return the properties assocaited with the specified stack depth and context
+	ContextNames(depth int) []Context                                 // Return the relevant Contexts
+	SetBreakpoint(bpType, fileName string, lineNumber int) Breakpoint // Set a breakpoint and return it
+	Status() string                                                   // Return status, one of ("starting", "stopping", "running", "break")
+}
+
+type Features struct {
+	Supports_async bool
+	Language_name  string
+}
+
+type Breakpoint struct {
+	Id    int    `xml:"breakpoint_id,attr"`
+	State string `xml:"state,attr"`
 }
 
 type InitResponse struct {
