@@ -1,4 +1,6 @@
-// package dbgp implements the dbgp client protocol
+// Package dbgp implements the dbgp client protocol
+//
+// see https://github.com/derickr/dbgp/blob/master/debugger_protocol.rst
 //
 // status: pre-alpha
 package dbgp
@@ -6,15 +8,18 @@ package dbgp
 // The DBGPClient interface captures what a client implementation must provide
 type DBGPClient interface {
 	Init() InitResponse
-	Features() Features                                               // Return supported features (called after Init())
-	StepInto() (status string, reason string)                         // Step the debugger into the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
-	StepOver() (status string, reason string)                         // Step over the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
-	StackDepth() int                                                  // Return the maximum stack depth
-	StackGet(depth int) []Stack                                       // Return one or more Stack elements based on the requested depth
-	ContextGet(depth, context int) []Property                         // Return the properties assocaited with the specified stack depth and context
-	ContextNames(depth int) []Context                                 // Return the relevant Contexts
-	SetBreakpoint(bpType, fileName string, lineNumber int) Breakpoint // Set a breakpoint and return it
-	Status() string                                                   // Return status, one of ("starting", "stopping", "running", "break")
+	Status() string                                    // Return status, one of ("starting", "stopping", "running", "break")
+	Features() Features                                // Return supported features (called after Init())
+	StepInto() (status string, reason string)          // Step the debugger into the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
+	StepOver() (status string, reason string)          // Step over the program. State being one of ("starting", "stopping", "running", "break"), and reason one of ("ok, "error", "aborted", "exception")
+	StackDepth() int                                   // Return the maximum stack depth
+	StackGet(depth int) ([]Stack, error)               // Return one or more Stack elements based on the requested depth
+	ContextNames(depth int) ([]Context, error)         // Return the relevant Contexts
+	ContextGet(depth, context int) ([]Property, error) // Return the properties assocaited with the specified stack depth and context
+
+	PropertyGet(depth, context int, name string) (string, error) // Return the value for a property
+
+	BreakpointSet(btType, fileName string, line int) (Breakpoint, error) // Set a breakpoint
 }
 
 type Features struct {
@@ -23,13 +28,13 @@ type Features struct {
 }
 
 type Breakpoint struct {
-	Id    int    `xml:"breakpoint_id,attr"`
+	ID    int    `xml:"breakpoint_id,attr"`
 	State string `xml:"state,attr"`
 }
 
 type InitResponse struct {
-	AppId    string `xml:"appid,attr"`
-	IdeKey   string `xml:"idekey,attr"`
+	AppID    string `xml:"appid,attr"`
+	IDeKey   string `xml:"idekey,attr"`
 	Session  string `xml:"session,attr"`
 	Thread   string `xml:"thread,attr"`
 	Parent   string `xml:"parent,attr"`
@@ -65,5 +70,5 @@ type Property struct {
 
 type Context struct {
 	Name string `xml:"name,attr"`
-	Id   int    `xml:"id,attr"`
+	ID   int    `xml:"id,attr"`
 }

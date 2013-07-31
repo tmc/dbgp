@@ -1,4 +1,8 @@
-// program dbgp2dbg implements a dbgp to gdb proxy
+// Program dbgp2dbg implements a dbgp to gdb proxy
+//
+// dbg2dbg (gdb target)
+//
+// note: invoke with the following options to debug: -v=2 -logtostderr
 package main
 
 import (

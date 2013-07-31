@@ -12,7 +12,10 @@ func (e dbgpError) Error() string {
 }
 
 var (
-	ErrParseError    = dbgpError{1, "Parse Error"}
-	ErrInvalidOpts   = dbgpError{3, "Invaild Options"}
+	// ErrParseError means an error occurred while parsing
+	ErrParseError = dbgpError{1, "Parse Error"}
+	// ErrInvalidOpts means invalid options were supplied
+	ErrInvalidOpts = dbgpError{3, "Invaild Options"}
+	// ErrUnimplemented means the attempted action is not implemented
 	ErrUnimplemented = dbgpError{4, "Unimplemented"}
 )
