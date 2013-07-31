@@ -23,7 +23,7 @@ type DBGPClient interface {
 	StackGet(depth int) ([]Stack, error)
 	// Return the relevant Contexts
 	ContextNames(depth int) ([]Context, error)
-	// Return the properties assocaited with the specified stack depth and context
+	// Return the properties associated with the specified stack depth and context
 	ContextGet(depth, context int) ([]Property, error)
 	// Return the value for a property
 	PropertyGet(depth, context int, name string) (string, error)
