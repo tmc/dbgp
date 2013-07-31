@@ -28,7 +28,7 @@ type DBGPClient interface {
 	// Return the value for a property
 	PropertyGet(depth, context int, name string) (string, error)
 	// Set a breakpoint
-	BreakpointSet(btType, fileName string, line int) (Breakpoint, error)
+	BreakpointSet(bpType, fileName string, line int) (Breakpoint, error)
 }
 
 // Features describes the supported features of the debugger enging
