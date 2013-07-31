@@ -39,7 +39,7 @@ type Features struct {
 
 // Breakpoint is a breakpoint in code
 type Breakpoint struct {
-	ID    int    `xml:"breakpoint_id,attr"`
+	ID int `xml:"breakpoint_id,attr"`
 	// Either "enabled" or "disabled"
 	State string `xml:"state,attr"`
 }

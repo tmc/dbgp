@@ -24,15 +24,15 @@ type GDB struct {
 
 	cmd *exec.Cmd
 
-	stdoutCh, stderrCh <-chan string
-	stdinCh            chan<- string
+	stdout, stderr <-chan string
+	stdin          chan<- string
 
 	errChan chan error
 }
 
 // Init is invoked to begin the session with the upstream IDE or proxy
 func (g *GDB) Init() dbgp.InitResponse {
-	g.consumeLines(g.stdoutCh, defaultWait)
+	g.consumeLines(g.stdout, defaultWait)
 	lineNumber, lang, _ := g.currentFilenameAndLang()
 	g.features.Language_name = lang
 
@@ -55,8 +55,8 @@ func (g *GDB) Features() dbgp.Features {
 }
 
 func (g *GDB) start() {
-	g.stdinCh <- "b 1"
-	g.stdinCh <- "run"
+	g.stdin <- "b 1"
+	g.stdin <- "run"
 	g.status = "break"
 	glog.V(1).Infoln("[gdbproxy] start:", g.stdoutLines())
 }
@@ -65,7 +65,7 @@ func (g *GDB) StepInto() (status, reason string) {
 	if g.status == "starting" {
 		g.start()
 	}
-	g.stdinCh <- "s"
+	g.stdin <- "s"
 	glog.V(2).Infoln("[gdbproxy] StepInto:", g.stdoutLines())
 	return "break", "ok"
 }
@@ -74,7 +74,7 @@ func (g *GDB) StepOver() (status, reason string) {
 	if g.status == "starting" {
 		g.start()
 	}
-	g.stdinCh <- "n"
+	g.stdin <- "n"
 	glog.V(2).Infoln("[gdbproxy] StepOver:", g.stdoutLines())
 	return "break", "ok"
 }
@@ -108,9 +108,9 @@ func (g *GDB) ContextNames(depth int) ([]dbgp.Context, error) {
 
 func (g *GDB) ContextGet(depth, context int) ([]dbgp.Property, error) {
 	// @todo consider depth, context
-	g.stdinCh <- "info locals"
+	g.stdin <- "info locals"
 	lines := g.stdoutLines()
-	g.stdinCh <- "info args"
+	g.stdin <- "info args"
 	lines = append(lines, g.stdoutLines()...)
 
 	properties := make([]dbgp.Property, 0)
@@ -133,7 +133,7 @@ func (g *GDB) ContextGet(depth, context int) ([]dbgp.Property, error) {
 }
 
 func (g *GDB) PropertyGet(depth, context int, name string) (string, error) {
-	g.stdinCh <- "p " + name
+	g.stdin <- "p " + name
 	lines := g.stdoutLines()
 	if len(lines) == 0 {
 		return "", fmt.Errorf("No output produced.")
@@ -148,8 +148,8 @@ func (g *GDB) BreakpointSet(bpType, fileName string, lineNumber int) (dbgp.Break
 	}
 
 	cmd := fmt.Sprintf("b %s:%d", stripAbsFilePrefix(fileName), lineNumber)
-	g.stdinCh <- "set breakpoint pending on"
-	g.stdinCh <- cmd
+	g.stdin <- "set breakpoint pending on"
+	g.stdin <- cmd
 
 	matches, err := reExtract("Breakpoint ([0-9]+) ", strings.Join(g.stdoutLines(), "\n"), 1)
 	if err != nil {
@@ -184,9 +184,9 @@ func New(target, ideKey, session string) (*GDB, error) {
 		ideKey:   ideKey,
 		session:  session,
 		cmd:      cmd,
-		stdoutCh: scanReaderToChan(stdout, errChan),
-		stderrCh: scanReaderToChan(stderr, errChan),
-		stdinCh:  stringChanToWriter(stdin, errChan),
+		stdout:   scanReaderToan(stdout, errChan),
+		stderr:   scanReaderToan(stderr, errChan),
+		stdin:    stringanToWriter(stdin, errChan),
 		errChan:  errChan,
 		features: dbgp.Features{},
 	}, nil
@@ -194,7 +194,7 @@ func New(target, ideKey, session string) (*GDB, error) {
 
 // get the type for a symbol
 func (g *GDB) getType(symbol string) string {
-	g.stdinCh <- "ptype " + symbol
+	g.stdin <- "ptype " + symbol
 	typeInfo := g.stdoutLines()
 	if len(typeInfo) == 0 {
 		return "unknown"
@@ -208,10 +208,10 @@ func (g *GDB) getType(symbol string) string {
 // Obtain the current filename and language via "info source"
 func (g *GDB) currentFilenameAndLang() (lineNumber, lang string, err error) {
 	//go io.Copy(g.stdin, os.Stdin) // @todo consider user stdin
-	g.stdinCh <- "list 1"
+	g.stdin <- "list 1"
 	// not interested in list output, needed for "info source"
 	g.stdoutLines()
-	g.stdinCh <- "info source"
+	g.stdin <- "info source"
 
 	sourceInfo := g.stdoutLines()
 	info := strings.Join(sourceInfo, "\n")
@@ -235,7 +235,7 @@ func (g *GDB) currentFilenameAndLang() (lineNumber, lang string, err error) {
 // Obtain the current line number
 func (g *GDB) currentLineNumber() (int, error) {
 	//go io.Copy(g.stdin, os.Stdin) // @todo consider user stdin
-	g.stdinCh <- "where"
+	g.stdin <- "where"
 	lineInfo := g.stdoutLines()
 	parts := strings.Join(lineInfo, "\n")
 
@@ -251,7 +251,7 @@ func (g *GDB) currentLineNumber() (int, error) {
 
 // Get stdout lines, waiting defaultWait
 func (g *GDB) stdoutLines() []string {
-	result := g.consumeLines(g.stdoutCh, defaultWait)
+	result := g.consumeLines(g.stdout, defaultWait)
 	for i, l := range result {
 		result[i] = strings.Replace(l, "(gdb) ", "", 1)
 	}
@@ -275,7 +275,7 @@ func (g *GDB) consumeLines(c <-chan string, maxWait time.Duration) []string {
 }
 
 // Consumes the reader and generates a string for every newline read
-func scanReaderToChan(r io.Reader, errChan chan<- error) <-chan string {
+func scanReaderToan(r io.Reader, errChan chan<- error) <-chan string {
 	c := make(chan string)
 	scanner := bufio.NewScanner(r)
 	go func() {
@@ -291,7 +291,7 @@ func scanReaderToChan(r io.Reader, errChan chan<- error) <-chan string {
 
 // Provides a writable channel of strings as the interface to a writer. Newlines
 // are automatically appended
-func stringChanToWriter(w io.Writer, errChan chan<- error) chan<- string {
+func stringanToWriter(w io.Writer, errChan chan<- error) chan<- string {
 	c := make(chan string)
 	bw := bufio.NewWriter(w)
 	go func() {
