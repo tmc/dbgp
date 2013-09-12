@@ -8,7 +8,7 @@ license: isc
 interesting sub-project: gdb->dbgp proxy
 
 quick-start:
-$ go get github.com/traviscline/dbgp/gdbproxy/cmd/gdb2dbgp # (I know)
+$ go get github.com/tmc/dbgp/gdbproxy/cmd/gdb2dbgp # (I know)
 $ gdb2dbgp ./binary-debuggable-with-gdb # this will attempt to connect to your IDE on port 9000 (see -h for options)
 
 hacking:
